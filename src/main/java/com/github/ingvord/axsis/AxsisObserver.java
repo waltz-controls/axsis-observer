@@ -1,55 +1,82 @@
 package com.github.ingvord.axsis;
 
+import co.elastic.apm.api.ElasticApm;
+import co.elastic.apm.api.Span;
 import co.elastic.apm.attach.ElasticApmAttacher;
+import com.github.ingvord.axsis.message.AxsisMoveAction;
 import io.reactivex.rxjava3.schedulers.Schedulers;
+import io.reactivex.rxjava3.subjects.PublishSubject;
+import io.reactivex.rxjava3.subjects.Subject;
 import magix.SseMagixClient;
 import org.jboss.resteasy.client.jaxrs.ResteasyClientBuilder;
 import org.jboss.resteasy.plugins.providers.jackson.ResteasyJackson2Provider;
 
+import javax.ws.rs.ProcessingException;
 import javax.ws.rs.client.Client;
+import javax.ws.rs.core.MediaType;
+import javax.ws.rs.sse.InboundSseEvent;
+import java.io.StringBufferInputStream;
+import java.util.Optional;
 
 public class AxsisObserver {
-    private static final SseMagixClient MAGIX;
-
     static {
         ElasticApmAttacher.attach();
     }
 
-    static {
+    private static Optional<AxsisMoveAction> tryAxsisMoveAction(InboundSseEvent inboundSseEvent){
+        try {
+            return Optional.of(inboundSseEvent.readData(AxsisMoveAction.class, MediaType.APPLICATION_JSON_TYPE));
+        }catch (ProcessingException e){
+            return Optional.empty();
+        }
+
+    }
+
+    public static void main(String[] args) {
         ResteasyJackson2Provider jacksonProvider = new ResteasyJackson2Provider();
 
         Client client = ResteasyClientBuilder.newClient().register(jacksonProvider);
 
-        MAGIX = new SseMagixClient("http://" + System.getenv("MAGIX_HOST"), client);
-    }
+        var moveAction = PublishSubject.<AxsisMoveAction>create();
 
-    public static void main(String[] args) throws InterruptedException {
-        MAGIX.connect();
+        var positionAction = PublishSubject.create();
 
-        var disposable = MAGIX.observe("axsis-xes")
-                .observeOn(Schedulers.io())
-                .subscribe(inboundSseEvent -> System.out.println(inboundSseEvent.readData()));
+        var doneAction = PublishSubject.create();
 
-
-        Runtime.getRuntime().addShutdownHook(new Thread()
-        {
-            @Override
-            public void run()
-            {
-                disposable.dispose();
-            }
+        moveAction.subscribe(axsisMoveAction -> {
+            var txn = ElasticApm.startTransaction();
+            txn.setName("move");
+            txn.setFrameworkName("axsis-magix");
         });
-//        Runtime.getRuntime().addShutdownHook(new Thread()
-//        {
-//            @Override
-//            public void run()
-//            {
-//                MAGIX.close();
-//            }
-//        });
 
-        while (true){
-            Thread.sleep(Long.MAX_VALUE);
+        try(var magix = new SseMagixClient("http://" + System.getenv("MAGIX_HOST"), client)){
+            magix.connect();
+
+            var disposable = magix.observe("axsis-xes")
+                    .observeOn(Schedulers.io())
+                    .doOnNext(inboundSseEvent -> System.out.println(inboundSseEvent.readData()))
+                    .subscribe(inboundSseEvent ->
+                    {
+                        var optionalAxsisMove = tryAxsisMoveAction(inboundSseEvent);
+                        if(optionalAxsisMove.isPresent())
+                            moveAction.onNext(optionalAxsisMove.get());
+                    });
+
+
+            Runtime.getRuntime().addShutdownHook(new Thread()
+            {
+                @Override
+                public void run()
+                {
+                    disposable.dispose();
+                }
+            });
+
+            while (true){
+                Thread.sleep(Long.MAX_VALUE);
+            }
+        } catch (Exception e){
+            throw new RuntimeException(e);
         }
     }
 

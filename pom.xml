@@ -40,22 +40,6 @@
             <version>${slf4j-api.version}</version>
         </dependency>
         <dependency>
-            <groupId>org.slf4j</groupId>
-            <artifactId>log4j-over-slf4j</artifactId>
-            <version>${slf4j-api.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>org.waltz.tango</groupId>
-            <artifactId>server</artifactId>
-            <version>1.0.8</version>
-        </dependency>
-        <dependency>
-            <groupId>org.waltz.tango</groupId>
-            <artifactId>ez</artifactId>
-            <version>1.0.8</version>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
             <groupId>waltz-controls.magix</groupId>
             <artifactId>java-client</artifactId>
             <version>1.1</version>
