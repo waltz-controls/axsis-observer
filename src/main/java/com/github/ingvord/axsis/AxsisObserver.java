@@ -53,7 +53,7 @@ public class AxsisObserver {
             magix.connect();
 
             magix.observe("axsis-xes")
-                    .observeOn(Schedulers.io())
+                    .subscribeOn(Schedulers.io())
                     .doOnNext(inboundSseEvent -> System.out.println(inboundSseEvent.readData()))
                     .blockingSubscribe(inboundSseEvent ->
                     {
