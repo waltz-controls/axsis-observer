@@ -52,29 +52,15 @@ public class AxsisObserver {
         try(var magix = new SseMagixClient("http://" + System.getenv("MAGIX_HOST"), client)){
             magix.connect();
 
-            var disposable = magix.observe("axsis-xes")
+            magix.observe("axsis-xes")
                     .observeOn(Schedulers.io())
                     .doOnNext(inboundSseEvent -> System.out.println(inboundSseEvent.readData()))
-                    .subscribe(inboundSseEvent ->
+                    .blockingSubscribe(inboundSseEvent ->
                     {
                         var optionalAxsisMove = tryAxsisMoveAction(inboundSseEvent);
                         if(optionalAxsisMove.isPresent())
                             moveAction.onNext(optionalAxsisMove.get());
                     });
-
-
-            Runtime.getRuntime().addShutdownHook(new Thread()
-            {
-                @Override
-                public void run()
-                {
-                    disposable.dispose();
-                }
-            });
-
-            while (true){
-                Thread.sleep(Long.MAX_VALUE);
-            }
         } catch (Exception e){
             throw new RuntimeException(e);
         }
