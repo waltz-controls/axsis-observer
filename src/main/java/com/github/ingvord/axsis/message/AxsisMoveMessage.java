@@ -2,7 +2,7 @@ package com.github.ingvord.axsis.message;
 
 import java.util.Map;
 
-public class AxsisMoveAction {
+public class AxsisMoveMessage {
     public String origin;
     public long id;
     public long parentId;
